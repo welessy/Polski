@@ -1,0 +1,731 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Polski dla mnie</title>
+<style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    margin: 0; padding: 0;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    min-height: 100vh; color: #333;
+  }
+  .container { max-width: 700px; margin: 0 auto; padding: 16px; }
+  header { text-align: center; color: white; padding: 20px 0; }
+  header h1 { margin: 0; font-size: 22px; }
+  header p { margin: 6px 0 0; opacity: 0.9; font-size: 14px; }
+
+  .tabs {
+    display: flex; overflow-x: auto; gap: 8px; padding: 10px 0;
+    scrollbar-width: none;
+  }
+  .tabs::-webkit-scrollbar { display: none; }
+  .tab {
+    flex: 0 0 auto; padding: 10px 16px;
+    background: rgba(255,255,255,0.25); color: white;
+    border: none; border-radius: 20px; font-size: 14px;
+    font-weight: 600; cursor: pointer; transition: 0.2s; white-space: nowrap;
+  }
+  .tab.active { background: white; color: #764ba2; }
+
+  .card {
+    background: white; border-radius: 20px; padding: 22px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.2); margin-bottom: 16px;
+  }
+  .story-title { font-size: 22px; font-weight: 700; color: #764ba2; margin: 0 0 6px; }
+  .story-subtitle { color: #888; font-size: 14px; margin: 0 0 16px; }
+
+  .controls { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+  .btn {
+    flex: 1 1 auto; padding: 12px 16px; border: none; border-radius: 12px;
+    font-size: 14px; font-weight: 600; cursor: pointer; transition: 0.2s;
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+  }
+  .btn-play { background: #667eea; color: white; }
+  .btn-play:active { background: #5568d3; }
+  .btn-slow { background: #8e9ef0; color: white; }
+  .btn-stop { background: #e74c3c; color: white; }
+  .btn-mic { background: #27ae60; color: white; }
+  .btn-mic.listening { background: #e74c3c; animation: pulse 1s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:0.7;} }
+
+  .story-text { font-size: 19px; line-height: 1.9; color: #222; }
+  .word { cursor: pointer; padding: 1px 2px; border-radius: 4px; transition: 0.15s; display: inline; }
+  .word:active, .word.active { background: #ffe066; }
+
+  .translation-box {
+    margin-top: 16px; padding: 14px; background: #f4f6ff;
+    border-left: 4px solid #667eea; border-radius: 10px;
+    min-height: 60px; font-size: 16px; color: #333;
+  }
+  .translation-box .pl { font-weight: 700; color: #667eea; margin-bottom: 4px; }
+  .translation-box .ru { color: #555; }
+  .hint { color: #999; font-style: italic; font-size: 14px; }
+
+  .full-translation {
+    margin-top: 18px; font-size: 15px; line-height: 1.7; color: #555;
+    display: none; padding: 14px; background: #fafafa; border-radius: 12px;
+  }
+  .full-translation.show { display: block; }
+  .full-translation h3 { margin: 0 0 10px; color: #764ba2; font-size: 15px; }
+  .full-translation p { margin: 0 0 8px; }
+
+  .result {
+    margin-top: 12px; padding: 12px; border-radius: 10px;
+    font-size: 14px; display: none;
+  }
+  .result.show { display: block; }
+  .result.ok { background: #d4edda; color: #155724; }
+  .result.partial { background: #fff3cd; color: #856404; }
+  .result.bad { background: #f8d7da; color: #721c24; }
+  .recognized { margin-top: 8px; font-size: 13px; color: #666; font-style: italic; }
+
+  .toggle-trans {
+    background: transparent; border: 1px solid #667eea; color: #667eea;
+    padding: 8px 14px; border-radius: 10px; font-size: 13px;
+    margin-top: 14px; cursor: pointer;
+  }
+  .level-badge {
+    display: inline-block; padding: 3px 10px; border-radius: 20px;
+    font-size: 11px; font-weight: 700; margin-left: 8px;
+    background: #ffe066; color: #7a5a00;
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1>🇵🇱 Polski dla mnie</h1>
+    <p>Нажми на слово — услышишь перевод</p>
+  </header>
+  <div class="tabs" id="tabs"></div>
+  <div class="card" id="card"></div>
+</div>
+
+<script>
+// ============ СЛОВАРЬ ============
+const dict = {
+  // базовые
+  "to":"это","jest":"есть / является","są":"есть (мн.)","i":"и","a":"а","w":"в","na":"на",
+  "z":"с","do":"до / в","od":"от","dla":"для","o":"о","po":"по / после","przez":"через",
+  "nie":"не / нет","tak":"да","ale":"но","bo":"потому что","że":"что","żeby":"чтобы",
+  "gdy":"когда","więc":"поэтому","też":"тоже","już":"уже","jeszcze":"ещё","tylko":"только",
+  "bardzo":"очень","trochę":"немного","dużo":"много","mało":"мало","wszystko":"всё",
+  "nic":"ничего","coś":"что-то","ktoś":"кто-то","zawsze":"всегда","nigdy":"никогда",
+  "często":"часто","rzadko":"редко","czasem":"иногда","zwykle":"обычно","teraz":"сейчас",
+  "potem":"потом","najpierw":"сначала","wtedy":"тогда","tutaj":"здесь","tam":"там",
+  "tu":"здесь","razem":"вместе","sam":"сам","sama":"сама","sami":"сами",
+  "już":"уже","właśnie":"именно","naprawdę":"действительно","oczywiście":"конечно",
+  "może":"может / может быть","może być":"может быть",
+
+  // местоимения
+  "ja":"я","ty":"ты","on":"он","ona":"она","ono":"оно","my":"мы","wy":"вы","oni":"они","one":"они (ж.)",
+  "mnie":"меня / мне","ciebie":"тебя","jego":"его","jej":"её","nas":"нас","was":"вас","ich":"их",
+  "mi":"мне","ci":"тебе","mu":"ему","jej":"ей","nam":"нам","wam":"вам","im":"им",
+  "mój":"мой","moja":"моя","moje":"моё","twoja":"твоя","twój":"твой","jego":"его","jej":"её",
+  "nasz":"наш","nasza":"наша","wasz":"ваш","ich":"их",
+  "ten":"этот","ta":"эта","te":"эти","tamten":"тот","tamta":"та",
+
+  // семья
+  "rodzina":"семья","mama":"мама","tata":"папа","brat":"брат","siostra":"сестра",
+  "babcia":"бабушка","dziadek":"дедушка","rodzice":"родители","dziecko":"ребёнок",
+  "dzieci":"дети","syn":"сын","córka":"дочь","mąż":"муж","żona":"жена",
+  "chłopiec":"мальчик","dziewczyna":"девочка / девушка","kobieta":"женщина",
+  "mężczyzna":"мужчина","przyjaciel":"друг","przyjaciółka":"подруга",
+  "kolega":"товарищ (м.)","koleżanka":"товарищ (ж.)","sąsiad":"сосед","sąsiadka":"соседка",
+
+  // дом
+  "dom":"дом","mieszkanie":"квартира","pokój":"комната","kuchnia":"кухня","łazienka":"ванная",
+  "sypialnia":"спальня","salon":"гостиная","drzwi":"дверь","okno":"окно","stół":"стол",
+  "krzesło":"стул","łóżko":"кровать","kanapa":"диван","lampa":"лампа","książka":"книга",
+  "telefon":"телефон","komputer":"компьютер","telewizor":"телевизор","samochód":"машина",
+  "rower":"велосипед","klucz":"ключ","zegar":"часы (настенные)","zegarek":"часы (наручные)",
+
+  // животные
+  "zwierzęta":"животные","zwierzę":"животное","kot":"кот","pies":"пёс","żółw":"черепаха",
+  "ryba":"рыба","ptak":"птица","krowa":"корова","koń":"конь","świnia":"свинья",
+  "kura":"курица","kogut":"петух","kaczka":"утка","mysz":"мышь","lew":"лев",
+  "tygrys":"тигр","słoń":"слон","małpa":"обезьяна","niedźwiedź":"медведь","wilk":"волк",
+  "lis":"лис","zając":"заяц","królik":"кролик","wąż":"змея","papuga":"попугай",
+  "lata":"летает","latać":"летать","pływa":"плавает","pływać":"плавать",
+  "biega":"бегает","biegać":"бегать","skacze":"прыгает","skakać":"прыгать",
+  "śpi":"спит","spać":"спать","śpiewa":"поёт","śpiewać":"петь","szczeka":"лает",
+
+  // природа
+  "las":"лес","park":"парк","ogród":"сад","woda":"вода","ziemia":"земля","niebo":"небо",
+  "słońce":"солнце","księżyc":"луна","gwiazda":"звезда","drzewo":"дерево","kwiat":"цветок",
+  "trawa":"трава","góra":"гора","rzeka":"река","jezioro":"озеро","morze":"море","plaża":"пляж",
+
+  // цвета
+  "biały":"белый","czarny":"чёрный","rudy":"рыжий","zielony":"зелёный",
+  "niebieski":"синий","czerwony":"красный","żółty":"жёлтый","różowy":"розовый",
+  "brązowy":"коричневый","szary":"серый","pomarańczowy":"оранжевый","fioletowy":"фиолетовый",
+
+  // прилагательные
+  "mały":"маленький","duży":"большой","nowy":"новый","stary":"старый","ładny":"красивый",
+  "brzydki":"некрасивый","dobry":"хороший","zły":"плохой","fajny":"классный",
+  "miły":"милый","zabawny":"забавный","mądry":"умный","głupi":"глупый","wesoły":"весёлый",
+  "smutny":"грустный","zmęczony":"усталый","szczęśliwy":"счастливый","głodny":"голодный",
+  "spragniony":"жаждущий","chory":"больной","zdrowy":"здоровый","szybki":"быстрый",
+  "wolny":"медленный / свободный","ciepły":"тёплый","zimny":"холодный","gorący":"горячий",
+  "słodki":"сладкий","kwaśny":"кислый","słony":"солёный","ostry":"острый","smaczny":"вкусный",
+  "pyszny":"очень вкусный","drogi":"дорогой","tani":"дешёвый","ważny":"важный",
+  "ciekawy":"интересный","trudny":"трудный","łatwy":"лёгкий","wysoki":"высокий","niski":"низкий",
+
+  // еда
+  "jedzenie":"еда","jeść":"кушать","jem":"ем","jesz":"ешь","je":"ест","jemy":"едим",
+  "śniadanie":"завтрак","obiad":"обед","kolacja":"ужин","chleb":"хлеб","masło":"масло",
+  "ser":"сыр","mleko":"молоко","herbata":"чай","kawa":"кофе","sok":"сок","piwo":"пиво",
+  "wino":"вино","jabłko":"яблоко","banan":"банан","pomarańcza":"апельсин","gruszka":"груша",
+  "winogrono":"виноград","truskawka":"клубника","ziemniak":"картошка","pomidor":"помидор",
+  "ogórek":"огурец","cebula":"лук","marchew":"морковь","zupa":"суп","mięso":"мясо",
+  "kurczak":"курица","ryż":"рис","makaron":"макароны","ryba":"рыба","jajko":"яйцо",
+  "ciasto":"пирог / торт","cukier":"сахар","sól":"соль","pieprz":"перец",
+  "restauracja":"ресторан","kawiarnia":"кафе","sklep":"магазин","piekarnia":"пекарня",
+  "kupować":"покупать","kupuję":"покупаю","kupić":"купить","gotować":"готовить",
+  "gotuję":"готовлю","gotuje":"готовит","zamawiać":"заказывать","zamawiam":"заказываю",
+  "menu":"меню","kelner":"официант","kelnerka":"официантка","rachunek":"счёт",
+  "poproszę":"попрошу (дайте, пожалуйста)","smacznego":"приятного аппетита",
+  "smakuje":"нравится на вкус","piję":"пью","pije":"пьёт","pijemy":"пьём",
+  "woda":"вода","wodę":"воду","zupę":"суп (вин.)","herbatę":"чай (вин.)","kawę":"кофе (вин.)",
+
+  // действия
+  "mam":"имею","masz":"имеешь","ma":"имеет","mamy":"имеем","macie":"имеете","mają":"имеют",
+  "jestem":"я есть","jesteś":"ты есть","jesteśmy":"мы есть","jesteście":"вы есть",
+  "był":"он был","była":"она была","było":"было","byli":"были",
+  "będę":"я буду","będzie":"будет","będziemy":"будем",
+  "robię":"делаю","robisz":"делаешь","robi":"делает","robimy":"делаем","robią":"делают",
+  "robić":"делать","mówię":"говорю","mówisz":"говоришь","mówi":"говорит","mówimy":"говорим",
+  "mówić":"говорить","powiedzieć":"сказать","wiem":"знаю","wiesz":"знаешь","wie":"знает",
+  "wiedzieć":"знать","znam":"знаю (кого-то)","zna":"знает","myślę":"думаю","myśli":"думает",
+  "myśleć":"думать","chcę":"хочу","chcesz":"хочешь","chce":"хочет","chcemy":"хотим",
+  "chcieć":"хотеть","mogę":"могу","możesz":"можешь","możemy":"можем","móc":"мочь",
+  "muszę":"должен","musisz":"должен","musi":"должен","musimy":"должны","musieć":"быть должным",
+  "lubię":"люблю","lubisz":"любишь","lubi":"любит","lubimy":"любим","lubić":"любить",
+  "kocham":"люблю (сильно)","kocha":"любит","kochać":"любить",
+  "idę":"иду","idziesz":"идёшь","idzie":"идёт","idziemy":"идём","iść":"идти",
+  "chodzę":"хожу","chodzi":"ходит","chodzić":"ходить","jadę":"еду","jedzie":"едет",
+  "jechać":"ехать","wracam":"возвращаюсь","wrócić":"вернуться","wróciłem":"я вернулся",
+  "widzę":"вижу","widzi":"видит","widzieć":"видеть","słyszę":"слышу","słyszy":"слышит",
+  "słyszeć":"слышать","patrzę":"смотрю","patrzy":"смотрит","patrzeć":"смотреть",
+  "czytam":"читаю","czyta":"читает","czytać":"читать","piszę":"пишу","pisze":"пишет",
+  "pisać":"писать","gram":"играю","gra":"играет","grać":"играть","śpię":"сплю",
+  "uczę się":"учусь","uczy się":"учится","uczyć się":"учиться","studiuję":"учусь в вузе",
+  "pracuję":"работаю","pracuje":"работает","pracować":"работать",
+  "mieszkam":"живу","mieszka":"живёт","mieszkamy":"живём","mieszkać":"жить",
+  "pomagam":"помогаю","pomaga":"помогает","pomóc":"помочь","pomoc":"помощь",
+  "otwieram":"открываю","zamykam":"закрываю","daję":"даю","daje":"даёт",
+  "biorę":"беру","bierze":"берёт","kładę":"кладу","stawiam":"ставлю",
+  "wstaję":"встаю","wstaje":"встаёт","kładę się":"ложусь","siadam":"сажусь",
+  "się":"себя (возвр.)","sobie":"себе",
+
+  // время
+  "dzień":"день","dni":"дни","tydzień":"неделя","miesiąc":"месяц","rok":"год","lata":"года / лет",
+  "godzina":"час","minuta":"минута","sekunda":"секунда","rano":"утро / утром",
+  "południe":"полдень","wieczór":"вечер","wieczorem":"вечером","noc":"ночь","nocą":"ночью",
+  "dziś":"сегодня","dzisiaj":"сегодня","wczoraj":"вчера","jutro":"завтра",
+  "pojutrze":"послезавтра","przedwczoraj":"позавчера","teraz":"сейчас","później":"позже",
+  "poniedziałek":"понедельник","wtorek":"вторник","środa":"среда","czwartek":"четверг",
+  "piątek":"пятница","sobota":"суббота","niedziela":"воскресенье",
+  "weekend":"выходные","wakacje":"каникулы / отпуск","święta":"праздники",
+  "wiosna":"весна","lato":"лето","jesień":"осень","zima":"зима",
+  "styczeń":"январь","luty":"февраль","marzec":"март","kwiecień":"апрель",
+  "maj":"май","czerwiec":"июнь","lipiec":"июль","sierpień":"август",
+  "wrzesień":"сентябрь","październik":"октябрь","listopad":"ноябрь","grudzień":"декабрь",
+
+  // погода
+  "pogoda":"погода","deszcz":"дождь","śnieg":"снег","wiatr":"ветер","chmura":"туча",
+  "słońce":"солнце","mgła":"туман","burza":"гроза","mróz":"мороз","upał":"жара",
+  "pada":"идёт (дождь/снег)","pada deszcz":"идёт дождь","pada śnieg":"идёт снег",
+  "świeci":"светит","wieje":"дует","jest zimno":"холодно","jest ciepło":"тепло",
+  "jest gorąco":"жарко","jest ładnie":"хорошая погода",
+
+  // места
+  "miasto":"город","wieś":"деревня","ulica":"улица","plac":"площадь","rynek":"рынок",
+  "szkoła":"школа","praca":"работа","szpital":"больница","apteka":"аптека",
+  "bank":"банк","poczta":"почта","lotnisko":"аэропорт","dworzec":"вокзал",
+  "przystanek":"остановка","kościół":"костёл","muzeum":"музей","teatr":"театр",
+  "kino":"кино","biblioteka":"библиотека","centrum":"центр","most":"мост",
+
+  // транспорт
+  "autobus":"автобус","tramwaj":"трамвай","pociąg":"поезд","samolot":"самолёт",
+  "taksówka":"такси","metro":"метро","bilet":"билет","stacja":"станция",
+  "peron":"перрон / платформа","opóźnienie":"опоздание","przesiadka":"пересадка",
+
+  // здоровье
+  "zdrowie":"здоровье","lekarz":"врач","dentysta":"стоматолог","pielęgniarka":"медсестра",
+  "ból":"боль","gorączka":"температура","katar":"насморк","kaszel":"кашель",
+  "głowa":"голова","brzuch":"живот","gardło":"горло","zęby":"зубы","oczy":"глаза",
+  "ręka":"рука","noga":"нога","serce":"сердце","boli":"болит","boli mnie":"у меня болит",
+  "recepta":"рецепт (мед.)","lekarstwo":"лекарство","tabletka":"таблетка",
+
+  // хобби
+  "hobby":"хобби","sport":"спорт","piłka":"мяч / футбол","piłka nożna":"футбол",
+  "siatkówka":"волейбол","koszykówka":"баскетбол","pływanie":"плавание",
+  "bieganie":"бег","taniec":"танец","muzyka":"музыка","gitara":"гитара","pianino":"пианино",
+  "film":"фильм","serial":"сериал","fotografia":"фотография","malowanie":"рисование",
+  "gotowanie":"готовка","podróże":"путешествия","książki":"книги","gry":"игры",
+
+  // работа
+  "zawód":"профессия","nauczyciel":"учитель","student":"студент","studentka":"студентка",
+  "inżynier":"инженер","programista":"программист","kucharz":"повар","sprzedawca":"продавец",
+  "kierowca":"водитель","policjant":"полицейский","biuro":"офис","szef":"начальник",
+  "kolega z pracy":"коллега","spotkanie":"встреча","projekt":"проект","urlop":"отпуск",
+  "pensja":"зарплата","spotkanie":"встреча / собрание",
+
+  // диалоги
+  "cześć":"привет / пока","witaj":"приветствую","dzień dobry":"добрый день",
+  "dobry wieczór":"добрый вечер","dobranoc":"спокойной ночи","pa":"пока",
+  "do widzenia":"до свидания","do zobaczenia":"до встречи","na razie":"пока что",
+  "dziękuję":"спасибо","dzięki":"спасибо (разг.)","proszę":"пожалуйста",
+  "przepraszam":"извините","jak się masz":"как дела?","jak się pan/pani ma":"как вы?",
+  "dobrze":"хорошо","świetnie":"отлично","tak sobie":"так себе","w porządku":"в порядке",
+  "jak":"как","co":"что","kto":"кто","gdzie":"где","kiedy":"когда","dlaczego":"почему",
+  "ile":"сколько","jaki":"какой","który":"который","jak długo":"как долго",
+  "nazywam się":"меня зовут","mam na imię":"меня зовут","jak masz na imię":"как тебя зовут?",
+  "miło mi":"приятно познакомиться","skąd jesteś":"откуда ты?","gdzie mieszkasz":"где живёшь?",
+  "ile masz lat":"сколько тебе лет?","mam lat":"мне ... лет",
+  "mówisz po polsku":"ты говоришь по-польски?","nie rozumiem":"не понимаю",
+  "jak to się mówi":"как это сказать?","co znaczy":"что значит",
+
+  // числа
+  "jeden":"один","dwa":"два","trzy":"три","cztery":"четыре","pięć":"пять",
+  "sześć":"шесть","siedem":"семь","osiem":"восемь","dziewięć":"девять","dziesięć":"десять",
+  "sto":"сто","tysiąc":"тысяча","pierwszy":"первый","drugi":"второй","trzeci":"третий",
+
+  // союзы
+  "jeśli":"если","albo":"или","lub":"или","ani":"ни","także":"также",
+  "jednak":"однако","przecież":"ведь","chyba":"наверное","na pewno":"наверняка",
+  "prawie":"почти","zupełnie":"совершенно","wcale":"вовсе","całkiem":"совсем",
+};
+
+// ============ ИСТОРИИ ============
+const stories = [
+  {
+    title: "Moja rodzina",
+    subtitle: "Моя семья • A1 (очень легко)",
+    text: `Cześć! To moja rodzina. Mam mamę, tatę, brata i siostrę. Moja mama ma na imię Anna. Mój tata ma na imię Piotr. Mój brat jest mały. Moja siostra jest duża. Mamy kota i psa. Kot jest biały, a pies jest czarny. Mieszkamy w dużym domu. Bardzo lubię moją rodzinę!`,
+    full: ["Привет! Это моя семья. У меня есть мама, папа, брат и сестра. Мою маму зовут Анна. Моего папу зовут Пётр. Мой брат маленький. Моя сестра большая. У нас есть кот и пёс. Кот белый, а пёс чёрный. Мы живём в большом доме. Очень люблю мою семью!"]
+  },
+  {
+    title: "W parku — zwierzęta",
+    subtitle: "В парке — животные • A1",
+    text: `Dziś jest ładny dzień. Idę do parku. W parku widzę małego psa. Pies jest bardzo wesoły. On biega i skacze. Potem widzę kota. Kot śpi na drzewie. Obok jest ptak. Ptak śpiewa i lata. W wodzie pływa ryba. Ryba jest mała i szybka. W parku jest dużo zwierząt. Lubię tutaj chodzić!`,
+    full: ["Сегодня хороший день. Я иду в парк. В парке я вижу маленького пса. Пёс очень весёлый. Он бегает и прыгает. Потом я вижу кота. Кот спит на дереве. Рядом птица. Птица поёт и летает. В воде плавает рыба. Рыба маленькая и быстрая. В парке много животных. Люблю сюда ходить!"]
+  },
+  {
+    title: "W restauracji — dialog",
+    subtitle: "В ресторане — диалог • A1",
+    text: `— Dzień dobry! Poproszę menu.
+— Dzień dobry! Proszę bardzo, oto menu.
+— Dziękuję. Chcę zupę pomidorową i kurczaka.
+— A do picia?
+— Poproszę herbatę.
+— Dobrze. Coś jeszcze?
+— Nie, dziękuję.
+— Smacznego!
+— Dziękuję bardzo!
+
+Później kelner przynosi jedzenie. Zupa jest gorąca i smaczna. Kurczak jest pyszny. Herbata jest ciepła. Płacę rachunek i wychodzę. To była dobra restauracja!`,
+    full: ["— Добрый день! Попрошу меню.","— Добрый день! Пожалуйста, вот меню.","— Спасибо. Хочу томатный суп и курицу.","— А попить?","— Попрошу чай.","— Хорошо. Что-нибудь ещё?","— Нет, спасибо.","— Приятного аппетита!","— Большое спасибо!","","Позже официант приносит еду. Суп горячий и вкусный. Курица очень вкусная. Чай тёплый. Плачу счёт и выхожу. Это был хороший ресторан!"]
+  },
+  {
+    title: "Mój dzień — dialog",
+    subtitle: "Мой день — диалог • A1+",
+    text: `— Cześć, Ania! Jak się masz?
+— Cześć, Marku! Dobrze, dziękuję. A ty?
+— Też dobrze. Co robisz dzisiaj?
+— Rano jem śniadanie i idę do pracy. Potem mam obiad o drugiej.
+— A po pracy?
+— Po pracy idę do sklepu. Kupuję chleb, mleko i owoce.
+— Wieczorem co robisz?
+— Wieczorem gotuję kolację i czytam książkę. A ty?
+— Ja wieczorem idę do parku z psem. Potem oglądam film.
+— Fajnie! Miłego dnia!
+— Tobie też!`,
+    full: ["— Привет, Аня! Как дела?","— Привет, Марек! Хорошо, спасибо. А ты?","— Тоже хорошо. Что делаешь сегодня?","— Утром ем завтрак и иду на работу. Потом у меня обед в два часа.","— А после работы?","— После работы иду в магазин. Покупаю хлеб, молоко и фрукты.","— Вечером что делаешь?","— Вечером готовлю ужин и читаю книгу. А ты?","— Я вечером иду в парк с псом. Потом смотрю фильм.","— Классно! Хорошего дня!","— Тебе тоже!"]
+  },
+  {
+    title: "Weekend w Krakowie",
+    subtitle: "Выходные в Кракове • A1+",
+    text: `W zeszły weekend byłem w Krakowie z moją przyjaciółką. To bardzo ładne miasto. Najpierw zwiedzaliśmy stary rynek. Potem poszliśmy do zamku Wawel. Widzieliśmy wiele ciekawych rzeczy. Było dużo turystów z całego świata. Zjedliśmy obiad w małej restauracji. Ja jadłem pierogi, a ona jadła żurek. Wieczorem spacerowaliśmy po mieście i piliśmy kawę. Kupiłem pamiątkę dla mojej mamy. Wróciliśmy do domu w niedzielę wieczorem. Byłem bardzo zmęczony, ale szczęśliwy. To były wspaniałe wakacje!`,
+    full: ["В прошлые выходные я был в Кракове с моей подругой. Это очень красивый город. Сначала мы осматривали старый рынок. Потом пошли в замок Вавель. Мы видели много интересных вещей. Было много туристов со всего мира. Мы поели в маленьком ресторане. Я ел вареники, а она ела журек. Вечером мы гуляли по городу и пили кофе. Я купил сувенир для моей мамы. Мы вернулись домой в воскресенье вечером. Я был очень уставший, но счастливый. Это были прекрасные каникулы!"]
+  },
+  {
+    title: "W sklepie — dialog",
+    subtitle: "В магазине — диалог • A1+",
+    text: `— Dzień dobry! Ile kosztuje ten chleb?
+— Dzień dobry! Chleb kosztuje cztery złote.
+— A mleko?
+— Mleko kosztuje trzy złote.
+— Poproszę chleb, mleko i dwa jabłka.
+— Coś jeszcze?
+— Nie, to wszystko. Ile płacę?
+— Razem dziesięć złotych.
+— Proszę. Dziękuję!
+— Dziękuję! Do widzenia!
+— Do widzenia!
+
+Wychodzę ze sklepu. Torba jest ciężka, ale jedzenie jest świeże. W domu robię kanapki i piję herbatę. To był dobry zakup!`,
+    full: ["— Добрый день! Сколько стоит этот хлеб?","— Добрый день! Хлеб стоит четыре злотых.","— А молоко?","— Молоко стоит три злотых.","— Попрошу хлеб, молоко и два яблока.","— Что-нибудь ещё?","— Нет, это всё. Сколько я плачу?","— Всего десять злотых.","— Пожалуйста. Спасибо!","— Спасибо! До свидания!","— До свидания!","","Выхожу из магазина. Сумка тяжёлая, но еда свежая. Дома делаю бутерброды и пью чай. Это была хорошая покупка!"]
+  },
+  {
+    title: "Pogoda i pory roku",
+    subtitle: "Погода и времена года • A1+",
+    text: `W Polsce są cztery pory roku: wiosna, lato, jesień i zima.
+
+Wiosną jest ciepło, ale często pada deszcz. Wszystko kwitnie — drzewa i kwiaty.
+
+Latem jest gorąco i słonecznie. Ludzie chodzą na plażę, pływają i jedzą lody.
+
+Jesienią jest chłodno i wietrznie. Liście są żółte, czerwone i brązowe. Często pada deszcz.
+
+Zimą jest zimno i pada śnieg. Dzieci lepią bałwana i jeżdżą na sankach. Czasem jest mróz.
+
+Jaka jest twoja ulubiona pora roku? Ja lubię lato, bo jest ciepło i wesoło!`,
+    full: ["В Польше четыре времени года: весна, лето, осень и зима.","Весной тепло, но часто идёт дождь. Всё цветёт — деревья и цветы.","Летом жарко и солнечно. Люди ходят на пляж, плавают и едят мороженое.","Осенью прохладно и ветрено. Листья жёлтые, красные и коричневые. Часто идёт дождь.","Зимой холодно и идёт снег. Дети лепят снеговика и катаются на санках. Иногда мороз.","Какое твоё любимое время года? Я люблю лето, потому что тепло и весело!"]
+  },
+  {
+    title: "U lekarza — dialog",
+    subtitle: "У врача — диалог • A1+",
+    text: `— Dzień dobry, panie doktorze.
+— Dzień dobry! Co panu dolega?
+— Bolą mnie gardło i głowa. Mam gorączkę.
+— Od kiedy?
+— Od dwóch dni.
+— Czy pan kaszle?
+— Tak, trochę. I mam katar.
+— Proszę otworzyć usta. Hmm, gardło jest czerwone.
+— Czy to coś poważnego?
+— Nie, to zwykłe przeziębienie. Przepiszę panu lekarstwo.
+— Jak często mam je brać?
+— Trzy razy dziennie po jedzeniu. I proszę dużo pić.
+— Dziękuję, panie doktorze.
+— Proszę odpoczywać. Do widzenia!
+— Do widzenia!`,
+    full: ["— Добрый день, господин доктор.","— Добрый день! Что вас беспокоит?","— У меня болит горло и голова. У меня температура.","— С каких пор?","— Уже два дня.","— Вы кашляете?","— Да, немного. И у меня насморк.","— Откройте рот. Хм, горло красное.","— Это что-то серьёзное?","— Нет, это обычная простуда. Я выпишу вам лекарство.","— Как часто мне его принимать?","— Три раза в день после еды. И пейте много.","— Спасибо, господин доктор.","— Отдыхайте. До свидания!","— До свидания!"]
+  },
+  {
+    title: "Nowa koleżanka",
+    subtitle: "Новая подруга • A2 (чуть сложнее)",
+    text: `Wczoraj w szkole poznałam nową koleżankę. Ma na imię Kasia i ma szesnaście lat. Przyjechała z Gdańska, bo jej rodzice zmienili pracę. Kasia jest bardzo miła i wesoła. Ma długie brązowe włosy i niebieskie oczy. Interesuje się muzyką i tańcem. Gra na gitarze i śpiewa w chórze. Lubi też czytać książki i gotować. Rozmawiałyśmy przez całą przerwę. Opowiadała mi o swoim mieście i o morzu. Zaprosiła mnie do siebie w weekend. Bardzo się cieszę, bo chcę mieć nową przyjaciółkę!`,
+    full: ["Вчера в школе я познакомилась с новой подругой. Её зовут Кася, ей шестнадцать лет. Она приехала из Гданьска, потому что её родители сменили работу. Кася очень милая и весёлая. У неё длинные каштановые волосы и голубые глаза. Она интересуется музыкой и танцами. Играет на гитаре и поёт в хоре. Ещё она любит читать книги и готовить. Мы разговаривали всю перемену. Она рассказывала мне о своём городе и о море. Она пригласила меня к себе на выходные. Я очень рада, потому что хочу иметь новую подругу!"]
+  },
+  {
+    title: "Podróż pociągiem — dialog",
+    subtitle: "Поездка на поезде — диалог • A2",
+    text: `— Przepraszam, czy to miejsce jest wolne?
+— Tak, proszę siadać.
+— Dziękuję. Jedzie pan do Warszawy?
+— Tak, do centrum. A pani?
+— Ja też. To mój pierwszy raz w tym pociągu.
+— Nie ma się czego bać. Pociąg jest szybki i wygodny.
+— O której będziemy na miejscu?
+— Około piętnastej. Mamy jeszcze dwie godziny.
+— Świetnie. Czy jest tu wagon restauracyjny?
+— Tak, w trzecim wagonie. Można kupić kawę i kanapki.
+— Dziękuję za informację. Chyba pójdę coś zjeść.
+— Smacznego! A ja poczytam książkę.
+— Miłej lektury!
+
+Podróż minęła szybko. Rozmawialiśmy o Polsce, o pracy i o podróżach. Na dworcu pożegnaliśmy się i wymieniliśmy numery telefonów.`,
+    full: ["— Извините, это место свободно?","— Да, садитесь, пожалуйста.","— Спасибо. Вы едете в Варшаву?","— Да, в центр. А вы?","— Я тоже. Это мой первый раз в этом поезде.","— Нечего бояться. Поезд быстрый и удобный.","— Во сколько мы будем на месте?","— Около пятнадцати. У нас ещё два часа.","— Отлично. Здесь есть вагон-ресторан?","— Да, в третьем вагоне. Можно купить кофе и бутерброды.","— Спасибо за информацию. Пожалуй, пойду чего-нибудь поесть.","— Приятного аппетита! А я почитаю книгу.","— Приятного чтения!","","Поездка прошла быстро. Мы говорили о Польше, о работе и о путешествиях. На вокзале мы попрощались и обменялись номерами телефонов."]
+  },
+  {
+    title: "Moje hobby",
+    subtitle: "Моё хобби • A2",
+    text: `Mam wiele zainteresowań, ale najbardziej lubię fotografię. Zaczęłem fotografować trzy lata temu, kiedy dostałem aparat od rodziców na urodziny. Od tego czasu robię zdjęcia prawie codziennie. Najbardziej lubię fotografować przyrodę: góry, jeziora, zachody słońca i zwierzęta. W weekendy często chodzę do lasu lub nad rzekę z aparatem. Czasem robię zdjęcia moim przyjaciołom. Ostatnio zapisałem się na kurs fotografii. Uczę się tam, jak robić lepsze zdjęcia i jak je obrabiać na komputerze. Chcę w przyszłości zostać prawdziwym fotografem. To moje największe marzenie!`,
+    full: ["У меня много увлечений, но больше всего я люблю фотографию. Я начал фотографировать три года назад, когда получил фотоаппарат от родителей на день рождения. С тех пор я делаю снимки почти каждый день. Больше всего я люблю фотографировать природу: горы, озёра, закаты и животных. По выходным я часто хожу в лес или к реке с фотоаппаратом. Иногда я фотографирую своих друзей. Недавно я записался на курс фотографии. Там я учусь, как делать лучшие снимки и как обрабатывать их на компьютере. В будущем я хочу стать настоящим фотографом. Это моя самая большая мечта!"]
+  },
+  {
+    title: "Zakupy w centrum handlowym",
+    subtitle: "Покупки в торговом центре • A2",
+    text: `W sobotę poszłam z mamą do centrum handlowego. Chciałam kupić nowe buty i kurtkę na jesień. Najpierw poszłyśmy do sklepu z odzieżą. Przymierzyłam kilka par butów, ale żadne nie były wygodne. Potem znalazłam idealne — czarne, skórzane i niedrogie. Kosztowały tylko sto pięćdziesiąt złotych. Byłam bardzo zadowolona! Następnie szukałyśmy kurtki. W jednym sklepie była promocja — wszystkie kurtki minus trzydzieści procent. Wybrałam ciemnozieloną kurtkę z kapturem. Mama też kupiła sobie szalik i rękawiczki. Potem zjadłyśmy obiad w food court i wróciłyśmy do domu. To był udany dzień!`,
+    full: ["В субботу я пошла с мамой в торговый центр. Я хотела купить новые ботинки и куртку на осень. Сначала мы пошли в магазин одежды. Я примерила несколько пар обуви, но ни одна не была удобной. Потом я нашла идеальные — чёрные, кожаные и недорогие. Они стоили всего сто пятьдесят злотых. Я была очень довольна! Затем мы искали куртку. В одном магазине была акция — все куртки минус тридцать процентов. Я выбрала тёмно-зелёную куртку с капюшоном. Мама тоже купила себе шарф и перчатки. Потом мы пообедали во фудкорте и вернулись домой. Это был удачный день!"]
+  },
+  {
+    title: "Święta Bożego Narodzenia",
+    subtitle: "Рождество • A2",
+    text: `Boże Narodzenie to moje ulubione święto w roku. W Polsce obchodzimy je bardzo uroczyście. Już w połowie grudnia cała rodzina zaczyna przygotowania. Mama piecze pierniki i robi ozdoby choinkowe. Tata z bratem ubierają choinkę — wieszają lampki, bombki i łańcuchy. Ja pomagam w kuchni i robię sałatkę jarzynową. W Wigilię, czyli 24 grudnia, cała rodzina siada do wspólnej kolacji. Na stole jest dwanaście potraw: barszcz z uszkami, karp, pierogi, śledzie i wiele innych. Dzielimy się opłatkiem i składamy sobie życzenia. Po kolacji śpiewamy kolędy i patrzymy na prezenty pod choinką. To magiczny czas!`,
+    full: ["Рождество — мой любимый праздник в году. В Польше мы празднуем его очень торжественно. Уже в середине декабря вся семья начинает готовиться. Мама печёт пряники и делает ёлочные украшения. Папа с братом наряжают ёлку — вешают гирлянды, шары и цепочки. Я помогаю на кухне и делаю овощной салат. В Сочельник, то есть 24 декабря, вся семья садится за общий ужин. На столе двенадцать блюд: борщ с ушками, карп, вареники, селёдка и многое другое. Мы делимся облаткой и желаем друг другу всего хорошего. После ужина мы поём колядки и смотрим на подарки под ёлкой. Это волшебное время!"]
+  },
+  {
+    title: "Rozmowa o pracę — dialog",
+    subtitle: "Собеседование — диалог • A2+",
+    text: `— Dzień dobry, nazywam się Anna Kowalska. Przyszłam na rozmowę o pracę.
+— Dzień dobry, proszę siadać. Nazywam się Marek Nowak. Proszę opowiedzieć coś o sobie.
+— Mam dwadzieścia pięć lat. Skończyłam studia na Uniwersytecie Warszawskim. Uczę się języków: angielskiego i niemieckiego. Pracowałam dwa lata w biurze tłumaczeń.
+— Dlaczego chce pani pracować u nas?
+— Wasza firma jest znana i interesuje się nowymi technologiami. Chcę się rozwijać i uczyć nowych rzeczy.
+— Jakie ma pani mocne strony?
+— Jestem pracowita, punktualna i lubię pracować w zespole. Dobrze organizuję swój czas.
+— A słabe strony?
+— Czasami jestem zbyt dokładna i to zabiera mi dużo czasu.
+— Dziękuję. Kiedy może pani zacząć?
+— Od przyszłego poniedziałku.
+— Świetnie. Zadzwonimy do pani w ciągu trzech dni.
+— Dziękuję bardzo. Do widzenia!
+— Do widzenia i powodzenia!`,
+    full: ["— Добрый день, меня зовут Анна Ковальская. Я пришла на собеседование.","— Добрый день, садитесь, пожалуйста. Меня зовут Марек Новак. Расскажите что-нибудь о себе.","— Мне двадцать пять лет. Я окончила Варшавский университет. Учу языки: английский и немецкий. Я работала два года в бюро переводов.","— Почему вы хотите работать у нас?","— Ваша фирма известна и интересуется новыми технологиями. Я хочу развиваться и учиться новому.","— Какие у вас сильные стороны?","— Я трудолюбивая, пунктуальная и люблю работать в команде. Хорошо организую своё время.","— А слабые стороны?","— Иногда я слишком точная, и это занимает у меня много времени.","— Спасибо. Когда вы можете начать?","— С следующего понедельника.","— Отлично. Мы позвоним вам в течение трёх дней.","— Большое спасибо. До свидания!","— До свидания и удачи!"]
+  },
+  {
+    title: "List do przyjaciela",
+    subtitle: "Письмо другу • A2+",
+    text: `Cześć, Tomku!
+
+Jak się masz? Dawno się nie widzieliśmy. Piszę do ciebie z Wrocławia, gdzie teraz mieszkam i pracuję.
+
+Wrocław to piękne miasto. Jest tu dużo mostów i wysp, dlatego nazywają je "polską Wenecją". Codziennie rano chodzę do pracy przez Rynek, gdzie jest piękny stary ratusz.
+
+Pracuję w firmie informatycznej jako programista. Praca jest ciekawa, ale czasami trudna. Mam dobrych kolegów, którzy pomagają mi we wszystkim.
+
+W weekendy zwiedzam miasto, chodzę do kina lub biegam po parku. Ostatnio zapisałem się na kurs języka polskiego i teraz mówię coraz lepiej.
+
+A co u ciebie? Kiedy przyjedziesz do mnie w odwiedziny? Mam wolny pokój, możesz u mnie mieszkać.
+
+Napisz mi, jak się masz. Czekam na twoją odpowiedź!
+
+Pozdrawiam serdecznie,
+Marek`,
+    full: ["Привет, Томек!","","Как дела? Давно не виделись. Пишу тебе из Вроцлава, где сейчас живу и работаю.","","Вроцлав — красивый город. Здесь много мостов и островов, поэтому его называют «польской Венецией». Каждое утро я хожу на работу через Рынок, где находится красивая старая ратуша.","","Я работаю в IT-фирме программистом. Работа интересная, но иногда трудная. У меня хорошие коллеги, которые помогают мне во всём.","","По выходным я осматриваю город, хожу в кино или бегаю в парке. Недавно я записался на курс польского языка, и теперь говорю всё лучше.","","А как у тебя? Когда приедешь ко мне в гости? У меня есть свободная комната, можешь жить у меня.","","Напиши мне, как дела. Жду твоего ответа!","","Сердечно приветствую,","Марек"]
+  },
+];
+
+// ============ ЛОГИКА ============
+let currentStory = 0;
+let recognition = null;
+let isListening = false;
+
+const tabsEl = document.getElementById('tabs');
+const cardEl = document.getElementById('card');
+
+function normalize(word) {
+  return word.toLowerCase().replace(/[.,!?;:—–\-„"()]/g, '').trim();
+}
+
+function translate(word) {
+  const w = normalize(word);
+  if (!w) return null;
+  if (dict[w]) return dict[w];
+  const variants = [w];
+  if (w.endsWith('ie')) variants.push(w.slice(0,-2)+'a');
+  if (w.endsWith('ę')) variants.push(w.slice(0,-1)+'a');
+  if (w.endsWith('ą')) variants.push(w.slice(0,-1)+'a');
+  if (w.endsWith('u')) variants.push(w.slice(0,-1));
+  if (w.endsWith('em')) variants.push(w.slice(0,-2));
+  if (w.endsWith('ami')) variants.push(w.slice(0,-3)+'a');
+  if (w.endsWith('ego')) variants.push(w.slice(0,-3)+'y');
+  if (w.endsWith('emu')) variants.push(w.slice(0,-3)+'y');
+  if (w.endsWith('ych')) variants.push(w.slice(0,-3)+'y');
+  if (w.endsWith('ym')) variants.push(w.slice(0,-2)+'y');
+  if (w.endsWith('ej')) variants.push(w.slice(0,-2)+'a');
+  for (const v of variants) if (dict[v]) return dict[v];
+  return null;
+}
+
+function speak(text, rate=0.85) {
+  if (!('speechSynthesis' in window)) { alert('Синтез речи не поддерживается'); return; }
+  window.speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(text);
+  u.lang = 'pl-PL';
+  u.rate = rate;
+  const voices = window.speechSynthesis.getVoices();
+  const pl = voices.find(v => v.lang && v.lang.startsWith('pl'));
+  if (pl) u.voice = pl;
+  window.speechSynthesis.speak(u);
+}
+
+function buildStory(idx) {
+  currentStory = idx;
+  const story = stories[idx];
+
+  tabsEl.innerHTML = '';
+  stories.forEach((s, i) => {
+    const b = document.createElement('button');
+    b.className = 'tab' + (i===idx ? ' active' : '');
+    b.textContent = (i+1) + '. ' + s.title;
+    b.onclick = () => buildStory(i);
+    tabsEl.appendChild(b);
+  });
+
+  cardEl.innerHTML = `
+    <h2 class="story-title">${story.title}</h2>
+    <p class="story-subtitle">${story.subtitle}</p>
+
+    <div class="controls">
+      <button class="btn btn-play" id="playBtn">🔊 Читать</button>
+      <button class="btn btn-slow" id="slowBtn">🐢 Медленно</button>
+      <button class="btn btn-stop" id="stopBtn">⏹ Стоп</button>
+    </div>
+    <div class="controls">
+      <button class="btn btn-mic" id="micBtn">🎤 Проверить моё чтение</button>
+    </div>
+
+    <div class="story-text" id="storyText"></div>
+
+    <div class="translation-box" id="transBox">
+      <span class="hint">👆 Нажми на любое слово — увидишь перевод и услышишь его</span>
+    </div>
+
+    <div class="result" id="result"></div>
+
+    <button class="toggle-trans" id="toggleTrans">📖 Показать полный перевод</button>
+    <div class="full-translation" id="fullTrans">
+      <h3>Полный перевод:</h3>
+      ${story.full.map(p => `<p>${p}</p>`).join('')}
+    </div>
+  `;
+
+  const storyTextEl = document.getElementById('storyText');
+  const tokens = story.text.split(/(\s+)/);
+  tokens.forEach(tok => {
+    if (/^\s+$/.test(tok)) { storyTextEl.appendChild(document.createTextNode(tok)); return; }
+    const m = tok.match(/^([„"(\-—]*)([^\s.,!?;:—–\-„"()]+)([.,!?;:—–\-„"()]*)$/);
+    if (!m) { storyTextEl.appendChild(document.createTextNode(tok)); return; }
+    const [, pre, core, post] = m;
+    if (pre) storyTextEl.appendChild(document.createTextNode(pre));
+    const span = document.createElement('span');
+    span.className = 'word';
+    span.textContent = core;
+    span.onclick = () => {
+      document.querySelectorAll('.word.active').forEach(el => el.classList.remove('active'));
+      span.classList.add('active');
+      const tr = translate(core);
+      const box = document.getElementById('transBox');
+      box.innerHTML = `
+        <div class="pl">🇵🇱 ${core}</div>
+        <div class="ru">🇷🇺 ${tr ? tr : '— (нет в словаре)'}</div>
+      `;
+      speak(core, 0.8);
+    };
+    storyTextEl.appendChild(span);
+    if (post) storyTextEl.appendChild(document.createTextNode(post));
+  });
+
+  document.getElementById('playBtn').onclick = () => speak(story.text, 0.9);
+  document.getElementById('slowBtn').onclick = () => speak(story.text, 0.6);
+  document.getElementById('stopBtn').onclick = () => window.speechSynthesis.cancel();
+  document.getElementById('toggleTrans').onclick = (e) => {
+    const el = document.getElementById('fullTrans');
+    el.classList.toggle('show');
+    e.target.textContent = el.classList.contains('show') ? '📕 Скрыть перевод' : '📖 Показать полный перевод';
+  };
+  document.getElementById('micBtn').onclick = () => startRecognition(story.text);
+}
+
+function startRecognition(expectedText) {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const resultEl = document.getElementById('result');
+  const micBtn = document.getElementById('micBtn');
+
+  if (!SR) {
+    resultEl.className = 'result bad show';
+    resultEl.textContent = '⚠️ Распознавание не поддерживается. Используй Safari на iOS 14.5+ или Chrome.';
+    return;
+  }
+
+  if (isListening) { recognition && recognition.stop(); return; }
+
+  recognition = new SR();
+  recognition.lang = 'pl-PL';
+  recognition.continuous = false;
+  recognition.interimResults = false;
+  recognition.maxAlternatives = 3;
+
+  recognition.onstart = () => {
+    isListening = true;
+    micBtn.classList.add('listening');
+    micBtn.textContent = '🎙 Слушаю... нажми, чтобы остановить';
+    resultEl.className = 'result';
+    resultEl.textContent = '';
+  };
+
+  recognition.onerror = (e) => {
+    isListening = false;
+    micBtn.classList.remove('listening');
+    micBtn.textContent = '🎤 Проверить моё чтение';
+    resultEl.className = 'result bad show';
+    resultEl.textContent = 'Ошибка: ' + e.error + '. Разреши доступ к микрофону в настройках Safari.';
+  };
+
+  recognition.onend = () => {
+    isListening = false;
+    micBtn.classList.remove('listening');
+    micBtn.textContent = '🎤 Проверить моё чтение';
+  };
+
+  recognition.onresult = (event) => {
+    let heard = '';
+    let bestScore = -1;
+    for (let i = 0; i < event.results.length; i++) {
+      for (let j = 0; j < event.results[i].length; j++) {
+        const alt = event.results[i][j];
+        const score = alt.confidence || 0.5;
+        if (score > bestScore) { bestScore = score; heard = alt.transcript; }
+      }
+    }
+    compareAndShow(expectedText, heard, resultEl);
+  };
+
+  try { recognition.start(); }
+  catch(e) {
+    resultEl.className = 'result bad show';
+    resultEl.textContent = 'Не удалось запустить распознавание: ' + e.message;
+  }
+}
+
+function compareAndShow(expected, heard, resultEl) {
+  const cleanExp = expected.toLowerCase().replace(/[.,!?;:—–\-„"()\n]/g, ' ').split(/\s+/).filter(Boolean);
+  const cleanHeard = heard.toLowerCase().replace(/[.,!?;:—–\-„"()\n]/g, ' ').split(/\s+/).filter(Boolean);
+
+  // простая оценка по совпадению слов
+  let matched = 0;
+  const used = new Array(cleanHeard.length).fill(false);
+  cleanExp.forEach(w => {
+    for (let i = 0; i < cleanHeard.length; i++) {
+      if (!used[i] && (cleanHeard[i] === w || levenshtein(cleanHeard[i], w) <= 1)) {
+        used[i] = true; matched++; break;
+      }
+    }
+  });
+  const pct = Math.round(matched / cleanExp.length * 100);
+
+  let cls = 'bad', emoji = '😕', msg = '';
+  if (pct >= 85) { cls = 'ok'; emoji = '🎉'; msg = 'Отлично! Почти идеально!'; }
+  else if (pct >= 60) { cls = 'partial'; emoji = '👍'; msg = 'Неплохо, но есть ошибки.'; }
+  else { cls = 'bad'; emoji = '📚'; msg = 'Попробуй ещё раз, читай медленнее.'; }
+
+  resultEl.className = 'result ' + cls + ' show';
+  resultEl.innerHTML = `${emoji} <b>${pct}%</b> — ${msg}
+    <div class="recognized">📝 Я услышал: "${heard}"</div>`;
+}
+
+function levenshtein(a, b) {
+  if (a === b) return 0;
+  if (!a.length) return b.length;
+  if (!b.length) return a.length;
+  const m = [];
+  for (let i = 0; i <= b.length; i++) m[i] = [i];
+  for (let j = 0; j <= a.length; j++) m[0][j] = j;
+  for (let i = 1; i <= b.length; i++) {
+    for (let j = 1; j <= a.length; j++) {
+      m[i][j] = b[i-1] === a[j-1]
+        ? m[i-1][j-1]
+        : Math.min(m[i-1][j-1]+1, m[i][j-1]+1, m[i-1][j]+1);
+    }
+  }
+  return m[b.length][a.length];
+}
+
+// загрузка голосов
+if ('speechSynthesis' in window) {
+  speechSynthesis.getVoices();
+  speechSynthesis.onvoiceschanged = () => speechSynthesis.getVoices();
+}
+
+buildStory(0);
+</script>
+</body>
+</html>
